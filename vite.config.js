@@ -3,19 +3,44 @@ import react from '@vitejs/plugin-react'
 import verifyCertificateHandler from './api/verify-certificate.js'
 import downloadCertificateHandler from './api/download-certificate.js'
 
-// Helper to parse POST request body
+// Robust, defensive request body parser that prevents hanging if the stream is already read or closed
 function parseRequestBody(req) {
+  if (req.body !== undefined) {
+    return Promise.resolve(req.body);
+  }
   return new Promise((resolve) => {
+    if (req.readableEnded || !req.readable) {
+      resolve({});
+      return;
+    }
+
     let body = '';
-    req.on('data', chunk => {
-      body += chunk;
-    });
-    req.on('end', () => {
+    
+    // Safety timeout: If request hangs or 'end' event doesn't trigger in 1 second, resolve with whatever has been read
+    const safetyTimeout = setTimeout(() => {
       try {
         resolve(body ? JSON.parse(body) : {});
       } catch (e) {
         resolve({});
       }
+    }, 1000);
+
+    req.on('data', chunk => {
+      body += chunk;
+    });
+
+    req.on('end', () => {
+      clearTimeout(safetyTimeout);
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch (e) {
+        resolve({});
+      }
+    });
+
+    req.on('error', () => {
+      clearTimeout(safetyTimeout);
+      resolve({});
     });
   });
 }
