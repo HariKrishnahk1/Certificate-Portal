@@ -7,30 +7,52 @@ const isAppsScript = API_BASE.includes('script.google.com');
  * @returns {Promise<object>}
  */
 export async function verifyCertificate(email) {
-  if (isAppsScript) {
-    // Perform GET request for Apps Script to avoid CORS pre-flight redirects issues
-    const url = `${API_BASE}?email=${encodeURIComponent(email)}`;
-    const response = await fetch(url, { method: 'GET', redirect: 'follow' });
-    if (!response.ok) {
-      throw new Error('Verification failed. Unable to connect to database.');
+  let response;
+  try {
+    if (isAppsScript) {
+      // Perform GET request for Apps Script to avoid CORS pre-flight redirects issues
+      const url = `${API_BASE}?email=${encodeURIComponent(email)}`;
+      response = await fetch(url, { method: 'GET', redirect: 'follow' });
+    } else {
+      response = await fetch(`${API_BASE}/verify-certificate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
     }
-    return response.json();
+  } catch (netErr) {
+    throw new Error('Network error: Unable to connect to the server. Please check your internet connection.');
   }
 
-  const response = await fetch(`${API_BASE}/verify-certificate`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ email }),
-  });
+  // Read response as plain text first to safeguard against empty or HTML errors
+  const responseText = await response.text();
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || 'Server error occurred during verification.');
+    let errorMessage = 'Server error occurred during verification.';
+    try {
+      const errorData = JSON.parse(responseText);
+      errorMessage = errorData.error || errorMessage;
+    } catch (e) {}
+    throw new Error(errorMessage);
   }
 
-  return response.json();
+  try {
+    return JSON.parse(responseText);
+  } catch (jsonErr) {
+    console.error('Failed to parse server response as JSON:', responseText);
+    
+    // Provide diagnostic information to user if it's an HTML error page (e.g. Google auth/redirects/permissions)
+    if (responseText.includes('<!DOCTYPE html>') || responseText.includes('<html')) {
+      if (responseText.includes('Authorization is required') || responseText.includes('auth')) {
+        throw new Error('Access denied: Google Apps Script requires authorization. Please verify it is deployed to "Anyone".');
+      }
+      throw new Error(`Server returned HTML instead of JSON. Details: ${responseText.substring(0, 80)}...`);
+    }
+    
+    throw new Error(responseText ? `Invalid server response: ${responseText.substring(0, 100)}` : 'Empty response received from the database server.');
+  }
 }
 
 /**
@@ -42,7 +64,6 @@ export async function verifyCertificate(email) {
  */
 export async function getCertificateBlobUrl(email, certificate, signature) {
   if (isAppsScript) {
-    // For Apps Script mode, if the certificate is a Google Drive URL, return the preview player embed link
     const googleDriveRegex = /\/file\/d\/([a-zA-Z0-9_-]+)/;
     const match = certificate.match(googleDriveRegex);
     if (match) {
@@ -62,8 +83,13 @@ export async function getCertificateBlobUrl(email, certificate, signature) {
   const response = await fetch(`${API_BASE}/download-certificate?${queryParams.toString()}`);
   
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || 'Failed to download certificate.');
+    const responseText = await response.text();
+    let errorMessage = 'Failed to download certificate.';
+    try {
+      const errorData = JSON.parse(responseText);
+      errorMessage = errorData.error || errorMessage;
+    } catch (e) {}
+    throw new Error(errorMessage);
   }
 
   const blob = await response.blob();
