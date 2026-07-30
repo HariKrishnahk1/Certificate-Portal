@@ -23,7 +23,7 @@ app.post('/api/download-certificate', downloadCertificateHandler);
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // Fallback: Serve index.html for all other routing paths (enables React routing)
-app.get('*', (req, res) => {
+app.get('(.*)', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
