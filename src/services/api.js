@@ -2,20 +2,50 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api';
 const isAppsScript = API_BASE.includes('script.google.com');
 
 /**
+ * Helper to construct a detailed error message with request details for debugging
+ */
+function makeDetailedError(message, url, method, response, responseText) {
+  const statusStr = response ? `Status: ${response.status} ${response.statusText}` : 'Status: Connection Failed';
+  const locationStr = typeof window !== 'undefined' ? `Browser Location: ${window.location.href}` : '';
+  const textStr = responseText ? `Body: ${responseText.substring(0, 100)}` : 'Body: (empty)';
+  
+  return new Error(
+    `${message}\n\n` +
+    `[Diagnostics]\n` +
+    `• URL: ${url}\n` +
+    `• Method: ${method}\n` +
+    `• ${statusStr}\n` +
+    `• ${textStr}\n` +
+    `• ${locationStr}`
+  );
+}
+
+/**
  * Verifies email with the backend sheet database
  * @param {string} email 
  * @returns {Promise<object>}
  */
 export async function verifyCertificate(email) {
   let response;
+  let url = '';
+  let method = '';
+
   try {
     if (isAppsScript) {
-      // Perform GET request for Apps Script to avoid CORS pre-flight redirects issues
-      const url = `${API_BASE}?email=${encodeURIComponent(email)}`;
-      response = await fetch(url, { method: 'GET', redirect: 'follow' });
+      method = 'GET';
+      url = `${API_BASE}?email=${encodeURIComponent(email)}`;
+      response = await fetch(url, { method, redirect: 'follow' });
     } else {
-      response = await fetch(`${API_BASE}/verify-certificate`, {
-        method: 'POST',
+      method = 'POST';
+      url = `${API_BASE}/verify-certificate`;
+      
+      // If relative API base, resolve to full URL for diagnostics
+      if (url.startsWith('/')) {
+        url = (typeof window !== 'undefined' ? window.location.origin : '') + url;
+      }
+
+      response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -23,10 +53,16 @@ export async function verifyCertificate(email) {
       });
     }
   } catch (netErr) {
-    throw new Error('Network error: Unable to connect to the server. Please check your internet connection.');
+    throw makeDetailedError(
+      'Network error: Unable to connect to the server. Please check your internet connection.',
+      url,
+      method,
+      null,
+      netErr.message
+    );
   }
 
-  // Read response as plain text first to safeguard against empty or HTML errors
+  // Read response as plain text first
   const responseText = await response.text();
 
   if (!response.ok) {
@@ -35,7 +71,7 @@ export async function verifyCertificate(email) {
       const errorData = JSON.parse(responseText);
       errorMessage = errorData.error || errorMessage;
     } catch (e) {}
-    throw new Error(errorMessage);
+    throw makeDetailedError(errorMessage, url, method, response, responseText);
   }
 
   try {
@@ -43,24 +79,37 @@ export async function verifyCertificate(email) {
   } catch (jsonErr) {
     console.error('Failed to parse server response as JSON:', responseText);
     
-    // Provide diagnostic information to user if it's an HTML error page (e.g. Google auth/redirects/permissions)
     if (responseText.includes('<!DOCTYPE html>') || responseText.includes('<html')) {
       if (responseText.includes('Authorization is required') || responseText.includes('auth')) {
-        throw new Error('Access denied: Google Apps Script requires authorization. Please verify it is deployed to "Anyone".');
+        throw makeDetailedError(
+          'Access denied: Google Apps Script requires authorization. Please verify it is deployed to "Anyone".',
+          url,
+          method,
+          response,
+          responseText
+        );
       }
-      throw new Error(`Server returned HTML instead of JSON. Details: ${responseText.substring(0, 80)}...`);
+      return makeDetailedError(
+        'Server returned HTML instead of JSON.',
+        url,
+        method,
+        response,
+        responseText
+      );
     }
     
-    throw new Error(responseText ? `Invalid server response: ${responseText.substring(0, 100)}` : 'Empty response received from the database server.');
+    throw makeDetailedError(
+      responseText ? 'Invalid JSON response received from the database server.' : 'Empty response received from the database server.',
+      url,
+      method,
+      response,
+      responseText
+    );
   }
 }
 
 /**
  * Fetches the certificate PDF as a local blob URL for secure viewing
- * @param {string} email 
- * @param {string} certificate 
- * @param {string} signature 
- * @returns {Promise<string>} Blob URL or direct URL
  */
 export async function getCertificateBlobUrl(email, certificate, signature) {
   if (isAppsScript) {
@@ -80,7 +129,8 @@ export async function getCertificateBlobUrl(email, certificate, signature) {
     download: 'false'
   });
 
-  const response = await fetch(`${API_BASE}/download-certificate?${queryParams.toString()}`);
+  const url = `${API_BASE}/download-certificate?${queryParams.toString()}`;
+  const response = await fetch(url);
   
   if (!response.ok) {
     const responseText = await response.text();
@@ -89,7 +139,7 @@ export async function getCertificateBlobUrl(email, certificate, signature) {
       const errorData = JSON.parse(responseText);
       errorMessage = errorData.error || errorMessage;
     } catch (e) {}
-    throw new Error(errorMessage);
+    throw makeDetailedError(errorMessage, url, 'GET', response, responseText);
   }
 
   const blob = await response.blob();
@@ -98,10 +148,6 @@ export async function getCertificateBlobUrl(email, certificate, signature) {
 
 /**
  * Returns the download URL for direct download trigger
- * @param {string} email 
- * @param {string} certificate 
- * @param {string} signature 
- * @returns {string} Fully qualified download link
  */
 export function getCertificateDownloadUrl(email, certificate, signature) {
   if (isAppsScript) {
