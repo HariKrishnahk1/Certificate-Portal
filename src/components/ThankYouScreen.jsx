@@ -86,10 +86,41 @@ export default function ThankYouScreen({ onNext, onBack }) {
         {/* Step 4: Subtitle */}
         <motion.p
           variants={itemVariants}
-          className="text-slate-300 text-sm md:text-base font-light mb-8 max-w-sm mx-auto leading-relaxed"
+          className="text-slate-300 text-sm md:text-base font-light mb-6 max-w-sm mx-auto leading-relaxed"
         >
           Your participation made the session special.
         </motion.p>
+
+        {/* Step 4.5: Winners Section */}
+        <motion.div
+          variants={itemVariants}
+          className="mb-8 pt-6 border-t border-slate-900"
+        >
+          <h3 className="text-[11px] font-bold tracking-widest uppercase text-blue-400 mb-4">
+            🏆 Workshop Winners
+          </h3>
+          <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto">
+            {/* Winner 1: Deepak M */}
+            <div className="flex flex-col items-center bg-slate-950/40 border border-slate-900/60 rounded-2xl p-2.5 shadow-md hover:border-blue-500/25 transition-all duration-300">
+              <span className="text-xs font-semibold text-slate-200 mb-2 font-mono">Deepak M</span>
+              <img
+                src="/deepak_m.jpg"
+                alt="Deepak M"
+                className="w-full aspect-[4/3] object-cover rounded-xl border border-slate-800/80 shadow"
+              />
+            </div>
+            
+            {/* Winner 2: Haripriya M */}
+            <div className="flex flex-col items-center bg-slate-950/40 border border-slate-900/60 rounded-2xl p-2.5 shadow-md hover:border-blue-500/25 transition-all duration-300">
+              <span className="text-xs font-semibold text-slate-200 mb-2 font-mono">Haripriya M</span>
+              <img
+                src="/haripriya_m.jpg"
+                alt="Haripriya M"
+                className="w-full aspect-[4/3] object-cover rounded-xl border border-slate-800/80 shadow"
+              />
+            </div>
+          </div>
+        </motion.div>
 
         {/* Step 5: Buttons */}
         <motion.div 
