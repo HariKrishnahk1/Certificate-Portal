@@ -14,6 +14,14 @@ export default function CertificateFound({ participant, email, onView, onBack })
 
   const downloadUrl = getCertificateDownloadUrl(email, certificate, signature);
 
+  const getCertificateType = () => {
+    const cleanName = name.toLowerCase().trim();
+    if (cleanName === 'haripriya m' || cleanName === 'deepak m') {
+      return 'Certificate of Achievement';
+    }
+    return 'Certificate of Participation';
+  };
+
   const containerVariants = {
     hidden: { opacity: 0, scale: 0.95 },
     visible: {
@@ -104,7 +112,7 @@ export default function CertificateFound({ participant, email, onView, onBack })
 
             {/* Certificate Details */}
             <p className="text-[11px] tracking-wider text-blue-400 font-semibold uppercase mb-1">
-              Certificate of Participation
+              {getCertificateType()}
             </p>
             <h3 className="text-xl md:text-2xl font-bold text-white tracking-tight mb-4 truncate">
               {name}
