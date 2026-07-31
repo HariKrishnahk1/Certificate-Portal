@@ -120,7 +120,7 @@ export default function WelcomeScreen({ onNext }) {
           transition={{ delay: 1.5, duration: 1 }}
           className="text-slate-300 text-sm md:text-base font-light mb-8 max-w-sm mx-auto leading-relaxed"
         >
-          Welcome to your workshop portal. We're glad you attended!
+          Download Your Certificates Portal Through this portal
         </motion.p>
 
         {/* Step 4: Continue Button */}
